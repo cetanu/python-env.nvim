@@ -43,12 +43,18 @@ local function find_project_root(start_path)
 	local path = vim.fn.fnamemodify(start_path, ":p")
 
 	while path ~= "/" do
+		local found_files = {}
 		for _, file in ipairs(config.project_files) do
 			if vim.fn.filereadable(path .. "/" .. file) == 1 then
 				log("Found project file: " .. path .. "/" .. file, "debug")
-				return path, file
+				table.insert(found_files, file)
 			end
 		end
+
+		if #found_files > 0 then
+			return path, found_files
+		end
+
 		path = vim.fn.fnamemodify(path, ":h")
 	end
 
@@ -138,12 +144,50 @@ local function get_poetry_env(project_root)
 	return nil
 end
 
-local function get_project_env(project_root)
+local function determine_preferred_tool(project_files)
+	-- Tool-specific lock files that indicate which tool should be preferred
+	local tool_indicators = {
+		poetry = { "poetry.lock" },
+		uv = { "uv.lock" },
+	}
+
+	-- Check for tool-specific lock files first
+	for tool, indicators in pairs(tool_indicators) do
+		for _, indicator in ipairs(indicators) do
+			for _, found_file in ipairs(project_files) do
+				if found_file == indicator then
+					log("Found " .. indicator .. ", preferring " .. tool, "debug")
+					return tool
+				end
+			end
+		end
+	end
+
+	-- If no specific lock files found, fall back to configured tool order
+	return nil
+end
+
+local function get_project_env(project_root, project_files)
 	local env_getters = {
 		uv = get_uv_env,
 		poetry = get_poetry_env,
 	}
 
+	-- First, try to determine the preferred tool based on lock files
+	local preferred_tool = determine_preferred_tool(project_files or {})
+
+	if preferred_tool and env_getters[preferred_tool] and command_exists(preferred_tool) then
+		log("Trying preferred tool: " .. preferred_tool, "debug")
+		local env = env_getters[preferred_tool](project_root)
+		if env then
+			log("Successfully got environment from preferred tool " .. preferred_tool, "debug")
+			return env, preferred_tool
+		else
+			log("Preferred tool " .. preferred_tool .. " failed, falling back to configured order", "debug")
+		end
+	end
+
+	-- Fall back to trying tools in configured order
 	for _, tool in ipairs(config.tools) do
 		local getter = env_getters[tool]
 		if getter then
@@ -197,13 +241,13 @@ local function restore_env()
 end
 
 function M.setup_env()
-	local project_root, project_file = find_project_root()
+	local project_root, project_files = find_project_root()
 	if not project_root then
 		log("No Python project detected in current directory", "debug")
 		return false
 	end
-	log("Found Python project at: " .. project_root .. " (" .. project_file .. ")", "debug")
-	local env, tool = get_project_env(project_root)
+	log("Found Python project at: " .. project_root .. " (" .. table.concat(project_files, ", ") .. ")", "debug")
+	local env, tool = get_project_env(project_root, project_files)
 	if env then
 		return apply_env(env, tool)
 	else

@@ -41,6 +41,7 @@ function M.check()
 	local project_files = {
 		"pyproject.toml",
 		"poetry.lock",
+		"uv.lock",
 	}
 
 	local found_project_files = {}

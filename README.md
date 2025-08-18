@@ -8,6 +8,10 @@ environment variables to hook up your editor to the correct python runtime.
 - Automatically detects Python projects by looking for:
   - `pyproject.toml`
   - `poetry.lock`
+  - `uv.lock`
+  - Uses **Poetry** when `poetry.lock` is present
+  - Uses **uv** when `uv.lock` is present
+  - Falls back to configured tool preference order when no specific lock files are found
 
 I'm not that interested in supporting other tools as I don't use them, but if
 you want, send over a PR
@@ -67,9 +71,13 @@ require("python-env").setup({
 ## How It Works
 
 1. The plugin searches upward from the current directory for Python project files
-2. It checks which Python environment tools are available on your system
-3. It uses the available tools to find the project's virtual environment
-4. It sets the following environment variables:
+2. It determines which tool to use based on lock files:
+   - If `poetry.lock` exists, it prioritizes Poetry
+   - If `uv.lock` exists, it prioritizes uv
+   - If no specific lock files are found, it tries tools in the configured preference order
+3. It checks which Python environment tools are available on your system
+4. It uses the determined tool to find the project's virtual environment
+5. It sets the following environment variables:
    - `VIRTUAL_ENV` - Path to the virtual environment
    - `PATH` - Prepends the virtual environment's bin directory
    - `PYTHON` - Path to the Python executable
