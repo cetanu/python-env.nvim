@@ -284,6 +284,17 @@ function M.get_env_info()
 	return nil
 end
 
+function M.clear_cache()
+	local project_root, _ = find_project_root()
+	if project_root and project_envs[project_root] then
+		project_envs[project_root] = nil
+		notify("Cache cleared for " .. project_root)
+	else
+		notify("No cache to clear for current project")
+	end
+end
+
+
 function M.setup(user_config)
 	config = vim.tbl_deep_extend("force", default_config, user_config or {})
 
@@ -295,6 +306,11 @@ function M.setup(user_config)
 	vim.api.nvim_create_user_command("PythonEnvRestore", function()
 		restore_env()
 	end, { desc = "Restore original environment" })
+
+	vim.api.nvim_create_user_command("PythonEnvClearCache", function()
+		M.clear_cache()
+	end, { desc = "Clear the environment cache for the current project" })
+
 
 	vim.api.nvim_create_user_command("PythonEnvInfo", function()
 		local info = M.get_env_info()
