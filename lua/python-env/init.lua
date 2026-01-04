@@ -15,6 +15,8 @@ local default_config = {
 
 local config = default_config
 local current_env = nil
+local project_envs = {}
+local command_cache = {}
 
 local function log(msg, level)
 	if config.debug or level == "error" then
@@ -29,12 +31,20 @@ local function notify(msg)
 end
 
 local function command_exists(cmd)
+	if command_cache[cmd] ~= nil then
+		return command_cache[cmd]
+	end
+
 	local handle = io.popen("which " .. cmd .. " 2>/dev/null")
 	if handle then
 		local result = handle:read("*a")
 		handle:close()
-		return result ~= ""
+		local exists = result ~= ""
+		command_cache[cmd] = exists
+		return exists
 	end
+
+	command_cache[cmd] = false
 	return false
 end
 
@@ -246,9 +256,16 @@ function M.setup_env()
 		log("No Python project detected in current directory", "debug")
 		return false
 	end
+
+	if project_envs[project_root] then
+		log("Using cached environment for " .. project_root, "debug")
+		return apply_env(project_envs[project_root].env, project_envs[project_root].tool)
+	end
+
 	log("Found Python project at: " .. project_root .. " (" .. table.concat(project_files, ", ") .. ")", "debug")
 	local env, tool = get_project_env(project_root, project_files)
 	if env then
+		project_envs[project_root] = { env = env, tool = tool }
 		return apply_env(env, tool)
 	else
 		log("Could not determine Python environment for project", "error")
